@@ -1,39 +1,82 @@
+// @title Go E-commerce API
+// @version 1.0.0
+// @description API สำหรับระบบ E-commerce ที่พัฒนาด้วย Go Fiber
+// @termsOfService http://swagger.io/terms/
+
+// @contact.name API Support
+// @contact.url http://www.swagger.io/support
+// @contact.email support@example.com
+
+// @license.name Apache 2.0
+// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+
+// @host localhost:3000
+// @BasePath /api/v1
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description JWT token สำหรับการยืนยันตัวตน ให้ใส่ token ในรูปแบบ: Bearer <token>
 package main
 
 import (
+	"log"
+
 	_ "fiber-ecommerce-api/docs"
+
 	"fiber-ecommerce-api/internal/adapters/http/handlers"
+	"fiber-ecommerce-api/internal/adapters/http/middleware"
 	"fiber-ecommerce-api/internal/adapters/persistence/repositories"
 	"fiber-ecommerce-api/internal/adapters/routes"
 	"fiber-ecommerce-api/internal/config"
 	"fiber-ecommerce-api/internal/core/services"
-	"log"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/middleware/cors"
-	"github.com/gofiber/fiber/v3/middleware/logger"
 )
 
-// @securityDefinitions.apikey BearerAuth
-// @in header
-// @name Authorization
 func main() {
-	// load config
+	// Load configuration
 	cfg := config.LoadConfig()
 
-	// setup db
+	// Setup database connection
 	db := config.SetupDatabase(cfg)
 
-	// initial repo
+	// Initialize repositories
 	userRepo := repositories.NewUserRepository(db)
+	roleRepo := repositories.NewRoleRepository(db)
 
-	// initial service
-	authService := services.NewAuthService(userRepo)
+	categoryRepo := repositories.NewCategoryRepository(db)
+	productRepo := repositories.NewProductRepository(db)
+	cartRepo := repositories.NewCartRepository(db)
+	orderRepo := repositories.NewOrderRepository(db)
+	transactionRepo := repositories.NewTransactionRepository(db)
+	statsRepo := repositories.NewStatsRepository(db)
 
-	// initial handler
-	authHandler := handlers.NewAuthHandler(authService)
+	// Initialize services
+	authService := services.NewAuthService(userRepo, roleRepo)
+	userService := services.NewUserService(userRepo)
+	categoryService := services.NewCategoryService(categoryRepo)
+	productService := services.NewProductService(productRepo)
+	cartService := services.NewCartService(cartRepo)
+	orderService := services.NewOrderService(orderRepo)
+	paymentService := services.NewPaymentService(transactionRepo)
+	statsService := services.NewStatsService(statsRepo)
 
-	// initial fiber app
+	// Initialize middleware
+	authMW := middleware.NewAuthMiddleware(cfg.JWTSecret)
+
+	// Initialize handlers
+	authHandler := handlers.NewAuthHandler(authService, userService)
+	userHandler := handlers.NewUserHandler(userService)
+
+	// เพิ่ม handlers อื่นๆ
+	categoryHandler := handlers.NewCategoryHandler(categoryService)
+	productHandler := handlers.NewProductHandler(productService)
+	cartHandler := handlers.NewCartHandler(cartService)
+	orderHandler := handlers.NewOrderHandler(orderService)
+	paymentHandler := handlers.NewPaymentHandler(paymentService)
+	statsHandler := handlers.NewStatsHandler(statsService)
+
+	// Initialize Fiber app
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c fiber.Ctx, err error) error {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -42,12 +85,19 @@ func main() {
 		},
 	})
 
-	// Middleware
-	app.Use(logger.New())
-	app.Use(cors.New())
-
-	// Setup routes
-	routes.SetupRoutes(app, authHandler)
+	// Initialize routes
+	routes := routes.NewRoutes(
+		authHandler,
+		userHandler,
+		categoryHandler,
+		productHandler,
+		cartHandler,
+		orderHandler,
+		paymentHandler,
+		statsHandler,
+		authMW,
+	)
+	routes.SetupRoutes(app)
 
 	// Start server
 	log.Printf("Server starting on port %s", cfg.AppPort)

@@ -21,22 +21,70 @@ func SetupDatabase(config *Config) *gorm.DB {
 
 	// Auto Migrate
 	if config.AutoMigrate {
-		err = db.AutoMigrate(&models.User{})
-		if err != nil {
-			log.Fatal("Failed to migrate database:", err)
-		} else {
-			log.Println("Successfully to migrate database")
-		}
+		runMigration(db)
 		
 	}
 
 
 	// สร้าง admin user แม้ว่าจะไม่ได้ migrate (กรณีที่ตารางมีอยู่แล้ว)
-	if err := SeedAdminUser(db, config); err != nil {
+	if err := SeedDatabase(db, config); err != nil {
 		log.Printf("Admin seeding failed: %v", err)
 	}
 
 	log.Println("Database connected successfully")
 
 	return db
+}
+
+// ฟังก์ชันสำหรับ migrate
+func runMigration(db *gorm.DB) {
+	log.Println("Starting database migration...")
+
+	// Migrate all models
+	err := db.AutoMigrate(
+		&models.Role{},
+		&models.Permission{},
+		&models.User{},
+		&models.Category{},
+		&models.Product{},
+		&models.ProductImage{},
+		&models.Cart{},
+		&models.CartItem{},
+		&models.Order{},
+		&models.OrderItem{},
+		&models.Transaction{},
+	)
+	if err != nil {
+		log.Fatal("Failed to migrate database:", err)
+	}
+
+	log.Println("Database migration completed successfully")
+}
+
+// ฟังก์ชันสำหรับ migrate แบบ manual (สำหรับ CLI)
+func RunMigrationManual(config *Config) error {
+	db := SetupDatabase(config)
+
+	log.Println("Running manual migration...")
+
+	// Migrate all models
+	err := db.AutoMigrate(
+		&models.Role{},
+		&models.Permission{},
+		&models.User{},
+		&models.Category{},
+		&models.Product{},
+		&models.ProductImage{},
+		&models.Cart{},
+		&models.CartItem{},
+		&models.Order{},
+		&models.OrderItem{},
+		&models.Transaction{},
+	)
+	if err != nil {
+		return fmt.Errorf("migration failed: %v", err)
+	}
+
+	log.Println("Manual migration completed successfully")
+	return nil
 }
